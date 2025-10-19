@@ -10,7 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import datetime
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()  # take environment variables
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,10 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-37+y2q5i@k(6)#dpfiarj+_az%b(im*8&&t=_$6xux9a6mr$k2"
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG")
 
 ALLOWED_HOSTS = []
 
@@ -145,3 +151,23 @@ AUTHENTICATION_BACKENDS = [
 
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # One week
 SESSION_SAVE_EVERY_REQUEST = True
+
+
+JWT_ACCESS_EXPIRATION = datetime.timedelta(minutes=10)
+JWT_REFRESH_EXPIRATION = datetime.timedelta(days=7)
+JWT_ALGORITHM = "HS256"
+JWT_COOKIE_NAME = "refresh_token"
+JWT_COOKIE_SAMESITE = "Lax"
+JWT_COOKIE_HTTPONLY = True
+if DEBUG:
+    JWT_COOKIE_SECURE = False
+else:
+    JWT_COOKIE_SECURE = True
+
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
