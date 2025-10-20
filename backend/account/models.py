@@ -1,7 +1,13 @@
-from django.db import models
-from django.contrib.auth.models import AbstractUser
-from django.utils import timezone
 import uuid
+
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from django.utils import timezone
+from datetime import timedelta
+
+
+def default_expiry():
+    return timezone.now() + timedelta(days=7)
 
 
 class User(AbstractUser):
@@ -37,7 +43,7 @@ class RefreshToken(models.Model):
         help_text="Indicates whether the token has been revoked (blacklisted).",
     )
     expires_at = models.DateTimeField(
-        default=lambda: timezone.now() + timezone.timedelta(days=7),
+        default=default_expiry,
         help_text="Expiration date and time for the token (default 7 days from creation).",
     )
 

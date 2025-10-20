@@ -6,20 +6,62 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
+from graphene_django import DjangoObjectType
 from graphql import GraphQLError
 
 from .models import RefreshToken
 from .utils import (
     create_access_token,
-    create_refresh_token,
-    decode_token,
     create_email_token,
+    create_refresh_token,
     decode_email_token,
+    decode_token,
     send_activation_email,
     send_reset_password_email,
 )
 
 User = get_user_model()
+
+
+# GraphQL Types
+class UserType(DjangoObjectType):
+    class Meta:
+        model = User
+        fields = ("id", "username", "email", "is_staff", "date_joined")
+
+
+class RefreshTokenType(DjangoObjectType):
+    class Meta:
+        model = RefreshToken
+        fields = ("id", "token", "revoked", "created_at", "expires_at")
+
+
+class RefreshTokenQuery(graphene.ObjectType):
+    my_tokens = graphene.List(RefreshTokenType)
+
+    def resolve_my_tokens(self, info):
+        user = info.context.user
+        if not user.is_authenticated:
+            raise GraphQLError("Authentication required.")
+
+        return RefreshToken.objects.filter(user=user).order_by("-created_at")
+
+
+class UserQuery(graphene.ObjectType):
+    me = graphene.Field(UserType)
+    users = graphene.List(UserType)
+
+    def resolve_me(self, info):
+        user = info.context.user
+        if not user.is_authenticated:
+            raise GraphQLError("Authentication required.")
+        return user
+
+    def resolve_users(self, info):
+        user = info.context.user
+        if not user.is_authenticated or not user.is_staff:
+            raise GraphQLError("Admin privileges required.")
+        return User.objects.all()
 
 
 class Register(graphene.Mutation):
@@ -169,7 +211,124 @@ class ResetPassword(graphene.Mutation):
         return ResetPassword(success=True)
 
 
-class Mutation(graphene.ObjectType):
+class UpdateUser(graphene.Mutation):
+    user = graphene.Field(UserType)
+
+    class Arguments:
+        username = graphene.String()
+        email = graphene.String()
+        password = graphene.String()
+
+    def mutate(self, info, username=None, email=None, password=None):
+        user = info.context.user
+        if not user.is_authenticated:
+            raise GraphQLError("Authentication required.")
+
+        if username:
+            user.username = username
+        if email:
+            user.email = email
+        if password:
+            user.password = make_password(password)
+        user.save()
+        return UpdateUser(user=user)
+
+
+class DeleteUser(graphene.Mutation):
+    message = graphene.String()
+
+    def mutate(self, info):
+        user = info.context.user
+        if not user.is_authenticated:
+            raise GraphQLError("Authentication required.")
+        username = user.username
+        user.delete()
+        return DeleteUser(message=f"User '{username}' deleted successfully.")
+
+
+class AdminDeleteUser(graphene.Mutation):
+    message = graphene.String()
+
+    class Arguments:
+        user_id = graphene.ID(required=True)
+
+    def mutate(self, info, user_id):
+        user = info.context.user
+        if not user.is_authenticated or not user.is_staff:
+            raise GraphQLError("Admin privileges required.")
+
+        try:
+            target = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            raise GraphQLError("User not found.")
+        target.delete()
+        return AdminDeleteUser(message=f"User {target.username} deleted by admin.")
+
+
+# --- Revoke Single Token ---
+class RevokeToken(graphene.Mutation):
+    message = graphene.String()
+
+    class Arguments:
+        token_id = graphene.ID(required=True)
+
+    def mutate(self, info, token_id):
+        user = info.context.user
+        if not user.is_authenticated:
+            raise GraphQLError("Authentication required.")
+
+        try:
+            token = RefreshToken.objects.get(id=token_id, user=user)
+        except RefreshToken.DoesNotExist:
+            raise GraphQLError("Token not found or not owned by user.")
+
+        token.revoke()
+        return RevokeToken(message="Token revoked successfully.")
+
+
+# --- Revoke All Tokens for Current User ---
+class RevokeAllTokens(graphene.Mutation):
+    message = graphene.String()
+
+    def mutate(self, info):
+        user = info.context.user
+        if not user.is_authenticated:
+            raise GraphQLError("Authentication required.")
+
+        tokens = RefreshToken.objects.filter(user=user, revoked=False)
+        count = tokens.count()
+        for token in tokens:
+            token.revoke()
+
+        return RevokeAllTokens(message=f"{count} active tokens revoked.")
+
+
+# --- Admin: Revoke Any Token ---
+class AdminRevokeToken(graphene.Mutation):
+    message = graphene.String()
+
+    class Arguments:
+        token_id = graphene.ID(required=True)
+
+    def mutate(self, info, token_id):
+        user = info.context.user
+        if not user.is_authenticated or not user.is_staff:
+            raise GraphQLError("Admin privileges required.")
+
+        try:
+            token = RefreshToken.objects.get(id=token_id)
+        except RefreshToken.DoesNotExist:
+            raise GraphQLError("Token not found.")
+
+        token.revoke()
+        return AdminRevokeToken(message=f"Token {token.id} revoked by admin.")
+
+
+class AccountQuery(UserQuery, RefreshTokenQuery, graphene.ObjectType):
+    pass
+
+
+class AccountMutation(graphene.ObjectType):
     register = Register.Field()
     activate_account = ActivateAccount.Field()
     login = Login.Field()
@@ -177,3 +336,9 @@ class Mutation(graphene.ObjectType):
     logout = Logout.Field()
     forgot_password = ForgotPassword.Field()
     reset_password = ResetPassword.Field()
+    update_user = UpdateUser.Field()
+    delete_user = DeleteUser.Field()
+    delete_admin_user = AdminDeleteUser.Field()
+    revoke_token = RevokeToken.Field()
+    revoke_all_tokens = RevokeAllTokens.Field()
+    admin_revoke_token = AdminRevokeToken.Field()

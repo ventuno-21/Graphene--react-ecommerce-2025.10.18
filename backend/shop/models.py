@@ -56,8 +56,6 @@ class Order(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
-
-    # ✅ این خط اضافه شد تا رابطه ManyToMany را از طریق OrderItem تعریف کنیم
     products = models.ManyToManyField(
         "Product",
         through="OrderItem",

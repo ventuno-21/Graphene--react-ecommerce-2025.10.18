@@ -82,7 +82,7 @@ def create_email_token(user, purpose="activate"):
     payload = {
         "user_id": user.id,
         "type": purpose,  # "activate" / "reset"
-        "exp":datetime.now(timezone.utc) + timedelta(hours=24)و
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24),
     }
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
     return token

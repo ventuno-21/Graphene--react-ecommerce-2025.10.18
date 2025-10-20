@@ -141,7 +141,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "account.User"
 
 GRAPHENE = {
-    "SCHEMA": "backend.schema.schema",  # ما یک فایل schema می‌سازیم
+    "SCHEMA": "a_config.schema.schema",
 }
 
 AUTHENTICATION_BACKENDS = [
@@ -171,3 +171,6 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+
+
+CART_SESSION_ID = "cart"
