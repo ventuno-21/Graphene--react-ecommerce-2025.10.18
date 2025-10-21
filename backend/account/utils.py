@@ -1,6 +1,6 @@
 import os
-from datetime import datetime, timezone, timedelta
-
+from datetime import timedelta
+from django.utils import timezone  # Use Django's timezone
 import jwt
 from django.conf import settings
 from django.core.mail import send_mail
@@ -8,14 +8,13 @@ from dotenv import load_dotenv
 from graphql import GraphQLError
 from .models import RefreshToken
 
-load_dotenv()  # take environment variables
+load_dotenv()
 
-
-FRONTEND_URL = os.getenv("{FRONTEND_URL}")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 
 def create_access_token(user):
-    exp = datetime.now(timezone.utc) + settings.JWT_ACCESS_EXPIRATION
+    exp = timezone.now() + settings.JWT_ACCESS_EXPIRATION  # Use timezone.now()
     payload = {
         "user_id": user.id,
         "email": user.email,
@@ -25,42 +24,19 @@ def create_access_token(user):
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     if isinstance(token, bytes):
-        """
-        PyJWT>=2 returns str; if bytes, decode
-        Ensures that the given token is always returned as a string.
-
-        If the `token` variable is of type `bytes`, it will be decoded to a UTF-8
-        string using `token.decode()`. This guarantees consistent string handling
-        regardless of whether the input originally comes as bytes or str.
-
-        Args:
-            token (bytes | str): The token value to normalize. It may be provided
-                as raw bytes (e.g., b"abc123") or already as a string (e.g., "abc123").
-
-        Returns:
-            str: The decoded or unchanged string representation of the token.
-
-        Examples:
-            >>> normalize_token(b"abc123")
-            'abc123'
-            >>> normalize_token("xyz456")
-            'xyz456'
-            >>> normalize_token(b"üser_token")
-            'üser_token'  # decoded using UTF-8
-        """
         token = token.decode()
     return token
 
 
 def create_refresh_token(user):
     token_obj = RefreshToken.objects.create(
-        user=user, expires_at=timezone.now() + timedelta(days=7)
+        user=user, expires_at=timezone.now() + timedelta(days=7)  # Use timezone.now()
     )
     payload = {
         "token_id": str(token_obj.token),
         "email": user.email,
         "type": "refresh",
-        "exp": token_obj.expires_at,
+        "exp": int(token_obj.expires_at.timestamp()),  # Convert to timestamp
     }
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
     if isinstance(token, bytes):
@@ -81,10 +57,12 @@ def decode_token(token):
 def create_email_token(user, purpose="activate"):
     payload = {
         "user_id": user.id,
-        "type": purpose,  # "activate" / "reset"
-        "exp": datetime.now(timezone.utc) + timedelta(hours=24),
+        "type": purpose,
+        "exp": timezone.now() + timedelta(hours=24),  # Use timezone.now()
     }
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+    if isinstance(token, bytes):
+        token = token.decode()
     return token
 
 
@@ -113,7 +91,7 @@ def send_activation_email(user):
 
 def send_reset_password_email(user):
     token = create_email_token(user, "reset")
-    reset_link = f"{FRONTEND_URL}/reset-password/?token={token}"
+    reset_link = f"{FRONTEND_URL}/reset-password/?{token}"
     send_mail(
         subject="Reset your password",
         message=f"Hi {user.email}, click to reset password: {reset_link}",

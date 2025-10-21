@@ -1,10 +1,10 @@
-# accounts/schema.py
 from datetime import timedelta
 
 import graphene
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
+from django.http import HttpResponse
 from django.utils import timezone
 from graphene_django import DjangoObjectType
 from graphql import GraphQLError
@@ -81,9 +81,16 @@ class Register(graphene.Mutation):
         if password1 != password2:
             raise GraphQLError("Passwords do not match")
 
-        user = User.objects.create(
-            email=email, password=make_password(password1), is_active=False
-        )
+        username_base = email.split("@")[0]
+        username = username_base
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{username_base}_{counter}"
+            counter += 1
+        # Create user
+        user = User.objects.create(username=username, email=email, is_active=False)
+        user.set_password(password1)
+        user.save()
 
         send_activation_email(user)
         return Register(
@@ -101,11 +108,18 @@ class ActivateAccount(graphene.Mutation):
         token = graphene.String(required=True)
 
     def mutate(self, info, token):
-        payload = decode_email_token(token, "activate")
-        user = User.objects.get(id=payload["user_id"])
-        user.is_active = True
-        user.save()
-        return ActivateAccount(success=True)
+        try:
+            payload = decode_email_token(token, "activate")
+            user = User.objects.get(id=payload["user_id"])
+            if user.is_active:
+                raise GraphQLError("Account already activated")
+            user.is_active = True
+            user.save()
+            return ActivateAccount(success=True)
+        except User.DoesNotExist:
+            raise GraphQLError("User not found")
+        except Exception as e:
+            raise GraphQLError(f"Activation failed: {str(e)}")
 
 
 class Login(graphene.Mutation):
@@ -127,10 +141,29 @@ class Login(graphene.Mutation):
         refresh, token_obj = create_refresh_token(user)
 
         # Set HttpOnly cookie
-        info.context.cookies["refresh_token"] = refresh
-        info.context.cookies["refresh_token"]["httponly"] = True
-        info.context.cookies["refresh_token"]["samesite"] = "Strict"
-        info.context.cookies["refresh_token"]["path"] = "/"
+        response = HttpResponse()
+        response.set_cookie(
+            settings.JWT_COOKIE_NAME,
+            refresh,
+            max_age=int(settings.JWT_REFRESH_EXPIRATION.total_seconds()),
+            httponly=True,
+            samesite=settings.JWT_COOKIE_SAMESITE,
+            secure=settings.JWT_COOKIE_SECURE,
+            path="/",
+        )
+        # info.context.set_cookie(
+        #     settings.JWT_COOKIE_NAME,
+        #     refresh,
+        #     max_age=int(settings.JWT_REFRESH_EXPIRATION.total_seconds()),
+        #     httponly=True,
+        #     samesite=settings.JWT_COOKIE_SAMESITE,
+        #     secure=settings.JWT_COOKIE_SECURE,
+        #     path="/",
+        # )
+        # info.context.COOKIES["refresh_token"] = refresh
+        # info.context.COOKIES["refresh_token"]["httponly"] = True
+        # info.context.COOKIES["refresh_token"]["samesite"] = "Strict"
+        # info.context.COOKIES["refresh_token"]["path"] = "/"
 
         return Login(access_token=access, success=True)
 
@@ -139,7 +172,7 @@ class RefreshTokenMutation(graphene.Mutation):
     access_token = graphene.String()
 
     def mutate(self, info):
-        cookie = info.context.COOKIES.get("refresh_token")
+        cookie = info.context.COOKIES.get(settings.JWT_COOKIE_NAME)  # Fixed: COOKIES
         if not cookie:
             raise GraphQLError("Refresh token missing")
 
@@ -186,11 +219,16 @@ class ForgotPassword(graphene.Mutation):
         email = graphene.String(required=True)
 
     def mutate(self, info, email):
-        user = User.objects.filter(email=email).first()
-        if not user:
-            raise GraphQLError("User not found")
-        send_reset_password_email(user)
-        return ForgotPassword(success=True)
+        try:
+            user = User.objects.filter(email=email).first()
+            if not user:
+                # Don't reveal if user exists or not for security
+                return ForgotPassword(success=True)
+
+            send_reset_password_email(user)
+            return ForgotPassword(success=True)
+        except Exception as e:
+            raise GraphQLError(f"Failed to send reset email: {str(e)}")
 
 
 class ResetPassword(graphene.Mutation):
@@ -204,11 +242,16 @@ class ResetPassword(graphene.Mutation):
     def mutate(self, info, token, password1, password2):
         if password1 != password2:
             raise GraphQLError("Passwords do not match")
-        payload = decode_email_token(token, "reset")
-        user = User.objects.get(id=payload["user_id"])
-        user.password = make_password(password1)
-        user.save()
-        return ResetPassword(success=True)
+        try:
+            payload = decode_email_token(token, "reset")
+            user = User.objects.get(id=payload["user_id"])
+            user.set_password(password1)
+            user.save()
+            return ResetPassword(success=True)
+        except User.DoesNotExist:
+            raise GraphQLError("User not found or invalid token")
+        except Exception as e:
+            raise GraphQLError(f"Password reset failed: {str(e)}")
 
 
 class UpdateUser(graphene.Mutation):

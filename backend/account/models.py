@@ -11,7 +11,13 @@ def default_expiry():
 
 
 class User(AbstractUser):
-    pass
+    address = models.CharField(max_length=1000, blank=True)
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = []
+
+    def __str__(self):
+        return f"{self.id} - {self.email}"
 
 
 class RefreshToken(models.Model):

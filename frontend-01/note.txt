@@ -1,0 +1,13 @@
+============= How to run the project 
+A) in frontend
+1) cd frontend
+2) yarn dev
+
+B) in backend
+1)cd backend
+2) venv/Scripts/activate
+3)python manage.py runserver
+
+For running project both A&B should be runned 
+====================================================================
+

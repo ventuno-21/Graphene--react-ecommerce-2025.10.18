@@ -157,6 +157,8 @@ class CreateProduct(graphene.Mutation):
         stock = graphene.Int(required=True)
 
     def mutate(self, info, category_id, title, description="", price=0, stock=0):
+        if price < 0 or stock < 0:
+            raise GraphQLError("Price and stock must be non-negative")
         user = info.context.user
         if not user.is_authenticated:
             raise GraphQLError("Authentication required")

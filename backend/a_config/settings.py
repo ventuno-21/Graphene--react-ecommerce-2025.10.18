@@ -66,8 +66,13 @@ ROOT_URLCONF = "a_config.urls"
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOW_CREDENTIALS = True
 
 TEMPLATES = [
     {
@@ -153,7 +158,7 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # One week
 SESSION_SAVE_EVERY_REQUEST = True
 
 
-JWT_ACCESS_EXPIRATION = datetime.timedelta(minutes=10)
+JWT_ACCESS_EXPIRATION = datetime.timedelta(hours=1)
 JWT_REFRESH_EXPIRATION = datetime.timedelta(days=7)
 JWT_ALGORITHM = "HS256"
 JWT_COOKIE_NAME = "refresh_token"
@@ -171,6 +176,6 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
-
+DEFAULT_FROM_EMAIL = os.environ.get("EMAIL_HOST_USER")
 
 CART_SESSION_ID = "cart"
