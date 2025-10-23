@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     "graphene_django",
     "corsheaders",
     # local apps
-    "shop",
+    "shop.apps.ShopConfig",
     "account",
 ]
 

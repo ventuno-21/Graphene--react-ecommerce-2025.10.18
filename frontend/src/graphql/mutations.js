@@ -10,10 +10,11 @@ export const LOGIN = gql`
 `;
 
 export const REGISTER = gql`
-  mutation Register($email: String!, $password1: String!, $password2: String!) {
-    register(email: $email, password1: $password1, password2: $password2) {
+  mutation Register($email: String!, $password1: String!, $password2: String!, $username: String!) {
+    register(email: $email, password1: $password1, password2: $password2, username: $username) {
       userId
       email
+      username
       message
       success
     }
@@ -56,6 +57,53 @@ export const RESET_PASSWORD = gql`
   mutation ResetPassword($token: String!, $password1: String!, $password2: String!) {
     resetPassword(token: $token, password1: $password1, password2: $password2) {
       success
+    }
+  }
+`;
+
+// ---------------------- FIXED ADD_TO_CART ----------------------
+export const ADD_TO_CART = gql`
+  mutation AddToCart($productId: ID!, $quantity: Int!) {
+    addToCart(productId: $productId, quantity: $quantity) {
+      message
+      totalItems
+      cartItem {
+        id
+        product {
+          id
+          title
+          price
+        }
+        quantity
+        totalPrice
+      }
+    }
+  }
+`;
+
+// Mutation to update cart item quantity
+export const UPDATE_CART_ITEM_QUANTITY = gql`
+  mutation UpdateCartItemQuantity($cartItemId: ID!, $quantity: Int!) {
+    updateCartItemQuantity(cartItemId: $cartItemId, quantity: $quantity) {
+      cartItem {
+        product {
+          id
+          title
+          price
+        }
+        quantity
+        totalPrice
+      }
+    }
+  }
+`;
+
+// Mutation to remove a product from the cart
+export const REMOVE_FROM_CART = gql`
+  mutation RemoveFromCart($productId: ID!) {
+    removeFromCart(productId: $productId) {
+      message
+      totalItems
     }
   }
 `;

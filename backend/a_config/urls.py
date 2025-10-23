@@ -15,17 +15,28 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-from django.contrib import admin
-from django.urls import path
-from graphene_django.views import GraphQLView
+import json
+
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
+from graphene_django.views import GraphQLView
+
+
+class LoggingGraphQLView(GraphQLView):
+    def parse_body(self, request):
+        data = super().parse_body(request)
+        print("\n🟡 GraphQL RAW BODY =========================")
+        print(json.dumps(data, indent=4))
+        print("============================================\n")
+        return data
 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True))),
+    path("graphql/", csrf_exempt(LoggingGraphQLView.as_view(graphiql=True))),
 ]
 
 if settings.DEBUG:

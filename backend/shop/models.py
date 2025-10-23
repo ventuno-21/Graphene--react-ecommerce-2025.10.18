@@ -31,7 +31,9 @@ class CartItem(models.Model):
         User, related_name="cart_items", null=True, blank=True, on_delete=models.CASCADE
     )
     session_key = models.CharField(max_length=255, null=True, blank=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="product"
+    )
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
 

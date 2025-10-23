@@ -67,38 +67,51 @@ class UserQuery(graphene.ObjectType):
 class Register(graphene.Mutation):
     user_id = graphene.Int()
     email = graphene.String()
+    username = graphene.String()
     message = graphene.String()
     success = graphene.Boolean()
 
     class Arguments:
         email = graphene.String(required=True)
+        username = graphene.String()
         password1 = graphene.String(required=True)
         password2 = graphene.String(required=True)
 
-    def mutate(self, info, email, password1, password2):
-        if User.objects.filter(email=email).exists():
-            raise GraphQLError("Email already registered")
-        if password1 != password2:
-            raise GraphQLError("Passwords do not match")
-
-        username_base = email.split("@")[0]
-        username = username_base
-        counter = 1
-        while User.objects.filter(username=username).exists():
-            username = f"{username_base}_{counter}"
-            counter += 1
-        # Create user
-        user = User.objects.create(username=username, email=email, is_active=False)
-        user.set_password(password1)
-        user.save()
-
-        send_activation_email(user)
-        return Register(
-            user_id=user.id,
-            email=user.email,
-            message="Account created. Please check your email to activate your account.",
-            success=True,
+    def mutate(self, info, email, password1, password2, username=None):
+        print(
+            f"Received: email={email}, username={username}, password1={password1}, password2={password2}"
         )
+        try:
+            if User.objects.filter(email=email).exists():
+                raise GraphQLError("Email already registered")
+
+            if password1 != password2:
+                raise GraphQLError("Passwords do not match")
+
+            if username is None or username == "":
+                username_base = email.split("@")[0]
+                username = username_base
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{username_base}_{counter}"
+                    counter += 1
+
+            user = User.objects.create(username=username, email=email, is_active=False)
+            user.set_password(password1)
+            user.save()
+
+            print("User created successfully")
+            send_activation_email(user)
+            return Register(
+                user_id=user.id,
+                email=user.email,
+                username=user.username,
+                message="Account created. Please check your email to activate your account.",
+                success=True,
+            )
+        except Exception as e:
+            print(f"Error in mutation: {str(e)}")
+            raise GraphQLError(f"Server error: {str(e)}")
 
 
 class ActivateAccount(graphene.Mutation):

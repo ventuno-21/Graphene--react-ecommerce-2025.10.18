@@ -1,8 +1,9 @@
+from decimal import Decimal
+
 import graphene
 from django.db import transaction
 from graphene_django import DjangoObjectType
 from graphql import GraphQLError
-
 from shop.cart import Cart
 from shop.models import CartItem, Category, Order, OrderItem, Product
 
@@ -20,10 +21,38 @@ class ProductType(DjangoObjectType):
         fields = "__all__"
 
 
+# class CartItemType(DjangoObjectType):
+#     class Meta:
+#         model = CartItem
+#         fields = "__all__"
+
+
 class CartItemType(DjangoObjectType):
     class Meta:
         model = CartItem
-        fields = "__all__"
+        fields = ("id", "product", "quantity")
+
+    total_price = graphene.Decimal(required=True)
+
+    def resolve_total_price(self, info):
+        return self.quantity * self.product.price
+
+
+class GuestCartItemType(graphene.ObjectType):
+    product = graphene.Field(ProductType, required=True)
+    quantity = graphene.Int(required=True)
+    total_price = graphene.Decimal(required=True)
+
+
+class CartItemUnion(graphene.Union):
+    class Meta:
+        types = (CartItemType, GuestCartItemType)
+
+
+class CartType(graphene.ObjectType):
+    items = graphene.List(CartItemUnion)
+    total_items = graphene.Int()
+    total_price = graphene.Decimal()
 
 
 class OrderType(DjangoObjectType):
@@ -61,6 +90,45 @@ class ProductQuery(graphene.ObjectType):
             return Product.objects.get(pk=id)
         except Product.DoesNotExist:
             raise GraphQLError("Product not found")
+
+
+class CartQuery(graphene.ObjectType):
+    cart = graphene.Field(CartType)
+
+    def resolve_cart(self, info):
+        print("inside cartquery)")
+
+        request = info.context
+        cart = Cart(request)
+        user = request.user
+
+        if user.is_authenticated:
+            cart_items = CartItem.objects.filter(user=user).select_related("product")
+            total_items = sum(item.quantity for item in cart_items)
+            total_price = sum(item.quantity * item.product.price for item in cart_items)
+            return CartType(
+                items=cart_items, total_items=total_items, total_price=total_price
+            )
+        else:
+            cart_items = []
+            for item in cart:
+                cart_items.append(
+                    GuestCartItemType(
+                        product=item["product"],
+                        quantity=item["quantity"],
+                        total_price=Decimal(
+                            item["total_price"]
+                        ),  # ✅ wrap with Decimal
+                    )
+                )
+
+            total_items = sum(item.quantity for item in cart_items)
+            total_price = sum(
+                Decimal(item.total_price) for item in cart_items
+            )  # ✅ wrap again
+            return CartType(
+                items=cart_items, total_items=total_items, total_price=total_price
+            )
 
 
 class OrderQuery(graphene.ObjectType):
@@ -250,16 +318,35 @@ class AddToCart(graphene.Mutation):
         quantity = graphene.Int(required=True)
 
     def mutate(self, info, product_id, quantity):
+        print("inside add to cart")
         request = info.context
+        user = request.user
         cart = Cart(request)
+
         try:
             product = Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
             raise GraphQLError("Product not found")
 
-        cart.add(product, quantity=quantity)
-        total_items = len(cart)
-        return AddToCart(message="Product added to cart", total_items=total_items)
+        if user.is_authenticated:
+            cart_item, created = CartItem.objects.get_or_create(
+                user=user,
+                product=product,
+                defaults={"quantity": quantity},
+            )
+            if not created:
+                cart_item.quantity += quantity
+                cart_item.save()
+            total_items = CartItem.objects.filter(user=user).count()
+        else:
+            cart.add(product, quantity=quantity)
+            total_items = len(cart)
+
+        return AddToCart(
+            message="Product added to cart",
+            total_items=total_items,
+            cart_item=cart_item if user.is_authenticated else None,
+        )
 
 
 class UpdateCartItemQuantity(graphene.Mutation):
@@ -403,5 +490,5 @@ class ShopMutation(graphene.ObjectType):
     update_order_status = UpdateOrderStatus.Field()
 
 
-class ShopQuery(OrderQuery, ProductQuery, graphene.ObjectType):
+class ShopQuery(OrderQuery, ProductQuery, CartQuery, graphene.ObjectType):
     pass

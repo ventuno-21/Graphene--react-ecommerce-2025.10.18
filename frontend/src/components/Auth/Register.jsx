@@ -1,75 +1,119 @@
 import { useState } from 'react';
 import { useMutation } from '@apollo/client';
-import { useNavigate } from 'react-router-dom';
 import { REGISTER } from '../../graphql/mutations';
 import Swal from 'sweetalert2';
+import { Link, useNavigate } from 'react-router-dom';
 
 function Register() {
-    // State for form inputs
     const [email, setEmail] = useState('');
-    const [password1, setPassword1] = useState('');
-    const [password2, setPassword2] = useState('');
-
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const navigate = useNavigate();
 
-    // Mutation to register user
-    const [registerMutation] = useMutation(REGISTER, {
+    const [register] = useMutation(REGISTER, {
         onCompleted: (data) => {
-            Swal.fire('Success', data.register.message, 'success');
-            navigate('/login'); // Redirect to login after success
+            console.log('Mutation response:', data); // لاگ برای دیباگ
+            Swal.fire({
+                title: 'Success',
+                text: 'Registration successful! Please check your email to activate your account.',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false,
+            });
+            navigate('/login');
         },
         onError: (error) => {
-            Swal.fire('Error', error.message, 'error');
+            console.error('GraphQL Error:', error);
+            Swal.fire('Error', error.message || 'Failed to register. Please try again.', 'error');
         },
     });
 
-    // Handle form submission
     const handleSubmit = (e) => {
         e.preventDefault();
-        registerMutation({ variables: { email, password1, password2 } });
+        if (!email || !username || !password || !confirmPassword) {
+            Swal.fire('Error', 'All fields are required', 'error');
+            return;
+        }
+        if (password !== confirmPassword) {
+            Swal.fire('Error', 'Passwords do not match', 'error');
+            return;
+        }
+        console.log('Sending variables:', { email, username, password1: password, password2: confirmPassword });
+        register({ variables: { email, username, password1: password, password2: confirmPassword } });
     };
 
     return (
-        <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded shadow">
-            <h2 className="text-2xl font-bold mb-4">Register</h2>
-            <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                    <label className="block mb-1">Email</label>
-                    <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full p-2 border rounded"
-                        required
-                    />
-                </div>
-                <div className="mb-4">
-                    <label className="block mb-1">Password</label>
-                    <input
-                        type="password"
-                        value={password1}
-                        onChange={(e) => setPassword1(e.target.value)}
-                        className="w-full p-2 border rounded"
-                        required
-                    />
-                </div>
-                <div className="mb-4">
-                    <label className="block mb-1">Confirm Password</label>
-                    <input
-                        type="password"
-                        value={password2}
-                        onChange={(e) => setPassword2(e.target.value)}
-                        className="w-full p-2 border rounded"
-                        required
-                    />
-                </div>
-                <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded">
-                    Register
-                </button>
-            </form>
-            <p className="mt-4 text-center">
-                <a href="/login" className="text-blue-600">Already have an account? Login</a>
-            </p>
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 pt-20">
+            <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 space-y-6">
+                <h2 className="text-3xl font-bold text-center text-gray-900">Register</h2>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                        <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                            Username
+                        </label>
+                        <input
+                            id="username"
+                            type="text"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                            Email
+                        </label>
+                        <input
+                            id="email"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                            Password
+                        </label>
+                        <input
+                            id="password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                            Confirm Password
+                        </label>
+                        <input
+                            id="confirmPassword"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            required
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        className="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                        Register
+                    </button>
+                </form>
+                <p className="text-center text-sm text-gray-600">
+                    Already have an account?{' '}
+                    <Link to="/login" className="text-blue-600 hover:text-blue-500">
+                        Login
+                    </Link>
+                </p>
+            </div>
         </div>
     );
 }

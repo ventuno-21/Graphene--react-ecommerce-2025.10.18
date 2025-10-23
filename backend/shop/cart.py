@@ -117,7 +117,9 @@ class Cart:
         product_ids = self.cart.keys()
         products = Product.objects.filter(id__in=product_ids)
         for product in products:
-            item = self.cart[str(product.id)]
+            item = self.cart[
+                str(product.id)
+            ].copy()  # Make a copy to avoid mutating session
             item["product"] = product
             item["price"] = Decimal(item["price"])
             item["total_price"] = item["price"] * item["quantity"]
