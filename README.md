@@ -58,7 +58,7 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 DATABASE_URL=postgres://...
 ```
 
-2. Frontend Setup (React + Vite)
+### 2. Frontend Setup (React + Vite)
 ```bash
 # Install dependencies
 npm install
